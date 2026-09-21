@@ -335,6 +335,54 @@ end
             end
         end
     end
+
+    # the M[2, 1] element is undef, we're testing whether ForwardDiff tries to read from it
+    @testset "#undef" begin
+        function raw_real(x)
+            M = similar(x, 2, 2)
+            M[1, 1] = x[1]
+            M[1, 2] = x[2]
+            M[2, 2] = x[3]
+            return M
+        end
+        #mock function so we don't need to import GenericLinearAlgebra
+        function LinearAlgebra.eigvals(M::Symmetric{BigFloat, Matrix{BigFloat}})
+            a, b, c = M[1], M[4], M[1, 2]
+            rt = sqrt(((a+b)/2)^2 + abs2(c) - a * b)
+            return [(a+b)/2-rt, (a+b)/2+rt]
+        end
+        function LinearAlgebra.eigen(M::Symmetric{BigFloat, Matrix{BigFloat}})
+            values = eigvals(M)
+            x = (values[1] - M[1])/M[1, 2]
+            vectors = [-1 -x; -x 1]/sqrt(1+x^2)
+            return Eigen(values, vectors)
+        end
+        LinearAlgebra.eigvals(M::Hermitian{BigFloat, Matrix{BigFloat}}) = eigvals(Symmetric(M))
+        LinearAlgebra.eigen(M::Hermitian{BigFloat, Matrix{BigFloat}}) = eigen(Symmetric(M))
+        function LinearAlgebra.eigvals(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
+            a, b, c = M[1], M[4], M[1, 2]
+            rt = sqrt(((a+b)/2)^2 + abs2(c) - a * b)
+            return [(a+b)/2-rt, (a+b)/2+rt]
+        end
+        function LinearAlgebra.eigen(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
+            values, vectors = eigen(Hermitian(real(Matrix(M)))) #workaround for a bug in julia 1.10
+            return Eigen(values, complex(vectors))
+        end
+
+        x0 = BigFloat[1, 2, 3]
+
+        for wrap in (
+            (x -> Symmetric(raw_real(x))),
+            (x -> Hermitian(raw_real(x))),
+            (x -> Hermitian(complex(raw_real(x)))),
+        )
+            for ev in (x -> eigvals(wrap(x)),
+                       x -> eigen(wrap(x)).values,
+                       x -> map(abs2, eigen(wrap(x)).vectors[:, 1]))
+                @test ForwardDiff.jacobian(ev, x0) ≈ Calculus.finite_difference_jacobian(ev, x0)
+            end
+        end
+    end
 end
 
 @testset "type stability" begin

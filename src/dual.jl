@@ -784,15 +784,15 @@ end
 #------------------------------------------------#
 
 # Extract structured matrices of primal values and partials
-_structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(map(value, parent(A)), A.uplo === 'U' ? :U : :L)
-_structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(map(value, parent(A)), A.uplo === 'U' ? :U : :L)
-_structured_value(A::Hermitian{Complex{Dual{T,V,N}}}) where {T,V,N} = Hermitian(map(z -> splat(complex)(map(value, reim(z))), parent(A)), A.uplo === 'U' ? :U : :L)
+_structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(value.(A), A.uplo === 'U' ? :U : :L)
+_structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(value.(A), A.uplo === 'U' ? :U : :L)
+_structured_value(A::Hermitian{Complex{Dual{T,V,N}}}) where {T,V,N} = Hermitian(broadcast(z -> splat(complex)(map(value, reim(z))), A), A.uplo === 'U' ? :U : :L)
 _structured_value(A::SymTridiagonal{Dual{T,V,N}}) where {T,V,N} = SymTridiagonal(map(value, A.dv), map(value, A.ev))
 
-_structured_partials(A::Symmetric{Dual{T,V,N}}, j::Int) where {T,V,N} = Symmetric(partials.(parent(A), j), A.uplo === 'U' ? :U : :L)
-_structured_partials(A::Hermitian{Dual{T,V,N}}, j::Int) where {T,V,N} = Hermitian(partials.(parent(A), j), A.uplo === 'U' ? :U : :L)
+_structured_partials(A::Symmetric{Dual{T,V,N}}, j::Int) where {T,V,N} = Symmetric(partials.(A, j), A.uplo === 'U' ? :U : :L)
+_structured_partials(A::Hermitian{Dual{T,V,N}}, j::Int) where {T,V,N} = Hermitian(partials.(A, j), A.uplo === 'U' ? :U : :L)
 function _structured_partials(A::Hermitian{Complex{Dual{T,V,N}}}, j::Int) where {T,V,N}
-    return Hermitian(complex.(partials.(real.(parent(A)), j), partials.(imag.(parent(A)), j)), A.uplo === 'U' ? :U : :L)
+    return Hermitian(complex.(partials.(real.(A), j), partials.(imag.(A), j)), A.uplo === 'U' ? :U : :L)
 end
 _structured_partials(A::SymTridiagonal{Dual{T,V,N}}, j::Int) where {T,V,N} = SymTridiagonal(partials.(A.dv, j), partials.(A.ev, j))
 
