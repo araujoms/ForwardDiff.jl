@@ -784,15 +784,18 @@ end
 #------------------------------------------------#
 
 # Extract structured matrices of primal values and partials
-_structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(value.(A), A.uplo === 'U' ? :U : :L)
-_structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(value.(A), A.uplo === 'U' ? :U : :L)
-_structured_value(A::Hermitian{Complex{Dual{T,V,N}}}) where {T,V,N} = Hermitian(broadcast(z -> splat(complex)(map(value, reim(z))), A), A.uplo === 'U' ? :U : :L)
+_maptri(f, A::Union{Symmetric,Hermitian}) = _maptri(f, A, parent(A))
+_maptri(f, A, P::AbstractArray{V}) where {V} = isbitstype(V) ? map(f, P) : broadcast(f, A)
+
+_structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(_maptri(value, A), A.uplo === 'U' ? :U : :L)
+_structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(_maptri(value, A), A.uplo === 'U' ? :U : :L)
+_structured_value(A::Hermitian{Complex{Dual{T,V,N}}}) where {T,V,N} = Hermitian(_maptri(z -> complex(value(real(z)), value(imag(z))), A), A.uplo === 'U' ? :U : :L)
 _structured_value(A::SymTridiagonal{Dual{T,V,N}}) where {T,V,N} = SymTridiagonal(map(value, A.dv), map(value, A.ev))
 
-_structured_partials(A::Symmetric{Dual{T,V,N}}, j::Int) where {T,V,N} = Symmetric(partials.(A, j), A.uplo === 'U' ? :U : :L)
-_structured_partials(A::Hermitian{Dual{T,V,N}}, j::Int) where {T,V,N} = Hermitian(partials.(A, j), A.uplo === 'U' ? :U : :L)
+_structured_partials(A::Symmetric{Dual{T,V,N}}, j::Int) where {T,V,N} = Symmetric(_maptri(a -> partials(a, j), A), A.uplo === 'U' ? :U : :L)
+_structured_partials(A::Hermitian{Dual{T,V,N}}, j::Int) where {T,V,N} = Hermitian(_maptri(a -> partials(a, j), A), A.uplo === 'U' ? :U : :L)
 function _structured_partials(A::Hermitian{Complex{Dual{T,V,N}}}, j::Int) where {T,V,N}
-    return Hermitian(complex.(partials.(real.(A), j), partials.(imag.(A), j)), A.uplo === 'U' ? :U : :L)
+    return Hermitian(_maptri(z -> complex(partials(real(z), j), partials(imag(z), j)), A), A.uplo === 'U' ? :U : :L)
 end
 _structured_partials(A::SymTridiagonal{Dual{T,V,N}}, j::Int) where {T,V,N} = SymTridiagonal(partials.(A.dv, j), partials.(A.ev, j))
 
