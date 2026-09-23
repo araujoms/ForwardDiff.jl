@@ -313,32 +313,31 @@ end
         end
     end
 
-    # The matrices above are all of the form `x*x'` and hence symmetric, so `:U` and `:L` wrap the
-    # same matrix. Here the raw storage is deliberately not symmetric/Hermitian: the values and the
-    # partials both have to be read from the triangle that `uplo` selects.
-    @testset "uplo = :$uplo" for uplo in (:U, :L)
-        # `2*x[1]+x[2]^2` rather than something proportional to the off-diagonal entry, so that the
-        # eigenvector direction actually depends on `x` and the eigenvector test is not vacuous
-        raw_real(x) = [x[1] x[2]; 3*x[2] 2*x[1]+x[2]^2]
-        raw_complex(x) = complex.(raw_real(x), [0 x[1]; -2*x[2] 0])
-        x0 = [1.0, 2.0]
+    #mock functions for the following thest so we don't need to import GenericLinearAlgebra
 
-        @testset "$name" for (name, wrap) in (
-            ("Symmetric{<:Real}", x -> Symmetric(raw_real(x), uplo)),
-            ("Hermitian{<:Real}", x -> Hermitian(raw_real(x), uplo)),
-            ("Hermitian{<:Complex}", x -> Hermitian(raw_complex(x), uplo)),
-        )
-            for ev in (x -> eigvals(wrap(x)),
-                       x -> eigen(wrap(x)).values,
-                       x -> map(abs2, eigen(wrap(x)).vectors[:, 1]))
-                @test ForwardDiff.jacobian(ev, x0) ≈ Calculus.finite_difference_jacobian(ev, x0)
-            end
-        end
+    LinearAlgebra.eigvals(M::Symmetric{BigFloat, Matrix{BigFloat}}) = eigvals(Hermitian(M))
+    LinearAlgebra.eigen(M::Symmetric{BigFloat, Matrix{BigFloat}}) = eigen(Hermitian(M))
+    LinearAlgebra.eigvals(M::Hermitian{BigFloat, Matrix{BigFloat}}) = eigvals(complex(M))
+    function LinearAlgebra.eigen(M::Hermitian{BigFloat, Matrix{BigFloat}})
+        values, vectors = eigen(complex(M))
+        return Eigen(values, real(vectors))
+    end
+    function LinearAlgebra.eigvals(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
+        a, b, c = real(M[1]), real(M[4]), M[1, 2]
+        rt = sqrt(((a+b)/2)^2 + abs2(c) - a * b)
+        return [(a+b)/2-rt, (a+b)/2+rt]
+    end
+    function LinearAlgebra.eigen(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
+        values = eigvals(M)
+        x = (values[1] - M[1])/M[1, 2]
+        vectors = [conj(sign(x))   -conj(x);
+                   abs(x)          1      ]/sqrt(1+abs2(x))
+        return Eigen(values, vectors)
     end
 
-    # the M[2, 1] element is undef, we're testing whether ForwardDiff tries to read from it
-    @testset "#undef" begin
-        function raw_real(x, uplo)
+    # one of the off-diagonal elements is undef, we're testing whether ForwardDiff tries to read from it
+    @testset "#undef uplo = :$uplo" for uplo in (:U, :L)
+        function raw_real(x)
             offdiagonal = uplo == :U ? 3 : 2
             M = similar(x, 2, 2)
             M[1, 1] = x[1]
@@ -346,43 +345,21 @@ end
             M[2, 2] = x[3]
             return M
         end
-        function raw_complex(x, uplo)
+        function raw_complex(x)
             offdiagonal = uplo == :U ? 3 : 2
             M = complex(similar(x, 2, 2))
             M[1, 1] = x[1]
-            M[offdiagonal] = x[2] + im*x[2]
+            M[offdiagonal] = x[2] + im*x[1]
             M[2, 2] = x[3]
             return M
         end
 
-        #mock function so we don't need to import GenericLinearAlgebra
-        LinearAlgebra.eigvals(M::Symmetric{BigFloat, Matrix{BigFloat}}) = eigvals(Hermitian(M))
-        LinearAlgebra.eigen(M::Symmetric{BigFloat, Matrix{BigFloat}}) = eigen(Hermitian(M))
-        LinearAlgebra.eigvals(M::Hermitian{BigFloat, Matrix{BigFloat}}) = eigvals(complex(M))
-        function LinearAlgebra.eigen(M::Hermitian{BigFloat, Matrix{BigFloat}})
-            values, vectors = eigen(complex(M))
-            return Eigen(values, real(vectors))
-        end
-        function LinearAlgebra.eigvals(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
-            a, b, c = real(M[1]), real(M[4]), M[1, 2]
-            rt = sqrt(((a+b)/2)^2 + abs2(c) - a * b)
-            return [(a+b)/2-rt, (a+b)/2+rt]
-        end
-        function LinearAlgebra.eigen(M::Hermitian{Complex{BigFloat}, Matrix{Complex{BigFloat}}})
-            values = eigvals(M)
-            x = (values[1] - M[1])/M[1, 2]
-            vectors = [conj(sign(x))   -conj(x);
-                       abs(x)          1      ]/sqrt(1+abs2(x))
-            return Eigen(values, vectors)
-        end
 
-        x0 = BigFloat[1, 2, 3]
-
-        for uplo in (:U, :L)
+        for x0 in (BigFloat[1, 2, 3], Float64[1, 2, 3])
             for wrap in (
-                (x -> Symmetric(raw_real(x, uplo), uplo)),
-                (x -> Hermitian(raw_real(x, uplo), uplo)),
-                (x -> Hermitian(raw_complex(x, uplo), uplo)),
+                (x -> Symmetric(raw_real(x), uplo)),
+                (x -> Hermitian(raw_real(x), uplo)),
+                (x -> Hermitian(raw_complex(x), uplo)),
             )
                 for ev in (
                            x -> eigvals(wrap(x)),

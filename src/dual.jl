@@ -784,8 +784,8 @@ end
 #------------------------------------------------#
 
 # Extract structured matrices of primal values and partials
-_maptri(f, A::Union{Symmetric,Hermitian}) = _maptri(f, A, parent(A))
-_maptri(f, A, P::AbstractArray{V}) where {V} = isbitstype(V) ? map(f, P) : broadcast(f, A)
+# non-isbits storage may be #undef outside of the `uplo` triangle
+_maptri(f, A::Union{Symmetric,Hermitian}) = isbitstype(eltype(A)) ? map(f, parent(A)) : broadcast(f, A)
 
 _structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(_maptri(value, A), A.uplo === 'U' ? :U : :L)
 _structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(_maptri(value, A), A.uplo === 'U' ? :U : :L)
