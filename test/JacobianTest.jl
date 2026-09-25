@@ -353,6 +353,16 @@ end
                 @test ForwardDiff._structured_partials(A, 2) == ∂2
             end
         end
+
+        @testset "#undef in the ignored element of SymTridiagonal" begin
+            dv = ForwardDiff.Dual{Nothing}.(BigFloat[1, 2, 3], BigFloat[1, 0, 0], BigFloat[0, 1, 0])
+            ev = similar(dv, 3)
+            ev[1], ev[2] = dv[1], dv[2]
+            A = SymTridiagonal(dv, ev)
+            @test ForwardDiff._structured_value(A) == [1 1 0; 1 2 2; 0 2 3]
+            @test ForwardDiff._structured_partials(A, 1) == [1 1 0; 1 0 0; 0 0 0]
+            @test ForwardDiff._structured_partials(A, 2) == [0 0 0; 0 1 1; 0 1 0]
+        end
     end
 end
 
