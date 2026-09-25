@@ -790,14 +790,14 @@ _maptri(f, A::Union{Symmetric,Hermitian}) = isbitstype(eltype(A)) ? map(f, paren
 _structured_value(A::Symmetric{Dual{T,V,N}}) where {T,V,N} = Symmetric(_maptri(value, A), A.uplo === 'U' ? :U : :L)
 _structured_value(A::Hermitian{Dual{T,V,N}}) where {T,V,N} = Hermitian(_maptri(value, A), A.uplo === 'U' ? :U : :L)
 _structured_value(A::Hermitian{Complex{Dual{T,V,N}}}) where {T,V,N} = Hermitian(_maptri(z -> complex(value(real(z)), value(imag(z))), A), A.uplo === 'U' ? :U : :L)
-_structured_value(A::SymTridiagonal{Dual{T,V,N}}) where {T,V,N} = SymTridiagonal(map(value, A.dv), map(value, A.ev))
+_structured_value(A::SymTridiagonal{Dual{T,V,N}}) where {T,V,N} = SymTridiagonal(map(value, A.dv), map(value, view(A.ev, 1:length(A.dv)-1)))
 
 _structured_partials(A::Symmetric{Dual{T,V,N}}, j::Int) where {T,V,N} = Symmetric(_maptri(a -> partials(a, j), A), A.uplo === 'U' ? :U : :L)
 _structured_partials(A::Hermitian{Dual{T,V,N}}, j::Int) where {T,V,N} = Hermitian(_maptri(a -> partials(a, j), A), A.uplo === 'U' ? :U : :L)
 function _structured_partials(A::Hermitian{Complex{Dual{T,V,N}}}, j::Int) where {T,V,N}
     return Hermitian(_maptri(z -> complex(partials(real(z), j), partials(imag(z), j)), A), A.uplo === 'U' ? :U : :L)
 end
-_structured_partials(A::SymTridiagonal{Dual{T,V,N}}, j::Int) where {T,V,N} = SymTridiagonal(partials.(A.dv, j), partials.(A.ev, j))
+_structured_partials(A::SymTridiagonal{Dual{T,V,N}}, j::Int) where {T,V,N} = SymTridiagonal(partials.(A.dv, j), partials.(view(A.ev, 1:length(A.dv)-1), j))
 
 # Convert arrays of primal values and partials to arrays of Duals
 function _to_duals(::Val{T}, values::AbstractArray{<:Real}, partials::Tuple{Vararg{AbstractArray{<:Real}}}) where {T}
